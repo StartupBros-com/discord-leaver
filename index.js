@@ -1,6 +1,7 @@
 import { createSpinner } from './utils/errorHandler.js';
 import prompts from "prompts";
 import { getGuilds, enhanceGuildData } from "./utils/getGuilds.js";
+import { getRelationships } from "./utils/getRelationships.js";
 import { checkToken } from "./utils/checkToken.js";
 import { validateToken, validate2FACode } from './utils/validation.js';
 import { rateLimit } from './utils/rateLimiter.js';
@@ -15,6 +16,47 @@ const formatTimestamp = (id) => {
 function getTimestampFromId(id) {
   const timestamp = Number((BigInt(id) >> 22n) + 1420070400000n);
   return new Date(timestamp);
+}
+
+function parseOptionalNumber(value) {
+  if (!value) return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function parseOptionalDate(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getCreatedDate(id) {
+  return getTimestampFromId(id);
+}
+
+function formatUsername(user) {
+  if (!user) return 'Unknown User';
+  if (user.global_name) {
+    return user.username ? `${user.global_name} (@${user.username})` : user.global_name;
+  }
+  if (user.username && user.discriminator && user.discriminator !== '0') {
+    return `${user.username}#${user.discriminator}`;
+  }
+  return user.username ?? 'Unknown User';
+}
+
+async function removeFriend(token, userId, label, removeSpinner) {
+  try {
+    await rateLimit(async () => {
+      await fetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/users/@me/relationships/${userId}`, {
+        method: "DELETE",
+        headers: { Authorization: token },
+      });
+    });
+    removeSpinner.succeed(`Removed ${label}`);
+  } catch (error) {
+    removeSpinner.fail(`Failed to remove ${label}: ${error.message}`);
+  }
 }
 
 async function leaveGuild(token, guild, guildInfo, leaveSpinner) {
@@ -81,6 +123,120 @@ async function main() {
     process.exit(1);
   }
   spinner.succeed(`Token valid for ${tokenValid.username}#${tokenValid.discriminator}`);
+
+  const { value: action } = await prompts({
+    type: "select",
+    name: "value",
+    message: "What would you like to manage?",
+    choices: [
+      { title: "Servers (leave or delete)", value: "servers" },
+      { title: "Friends list (remove friends)", value: "friends" },
+    ],
+  });
+
+  if (!action) {
+    spinner.fail("Operation cancelled");
+    process.exit(1);
+  }
+
+  if (action === "friends") {
+    spinner.start("Getting friends");
+    const relationships = await getRelationships(token);
+    if (!relationships.success) {
+      spinner.fail(`Failed to get friends: ${relationships.error}`);
+      process.exit(1);
+    }
+
+    const friends = relationships.data.filter((relationship) => relationship.type === 1);
+    spinner.succeed(`Got ${friends.length} friends`);
+
+    if (!friends.length) {
+      spinner.fail("No friends found to remove");
+      process.exit(1);
+    }
+
+    const { value: selectionMode } = await prompts({
+      type: "select",
+      name: "value",
+      message: "How do you want to choose friends?",
+      choices: [
+        { title: "Select manually", value: "manual" },
+        { title: `Remove all ${friends.length} friends`, value: "all" }
+      ]
+    });
+
+    if (!selectionMode) {
+      spinner.fail("Operation cancelled");
+      process.exit(1);
+    }
+
+    let selectedFriends;
+    if (selectionMode === "all") {
+      selectedFriends = friends.map((friend) => friend.id);
+    } else {
+      const selectionResponse = await prompts({
+        type: "multiselect",
+        name: "value",
+        message: "Select friends to remove",
+        hint: "Space to select. Enter to confirm. Type to search.",
+        instructions: false,
+        choices: friends.map((friend) => ({
+          title: formatUsername(friend.user),
+          value: friend.id,
+          description: friend.user?.id ?? ''
+        })),
+        onState: (state) => {
+          if (state.aborted) {
+            return true;
+          }
+        }
+      });
+
+      selectedFriends = selectionResponse.value;
+    }
+
+    if (selectedFriends === undefined) {
+      spinner.fail("Operation cancelled");
+      process.exit(1);
+    }
+
+    if (!selectedFriends?.length) {
+      spinner.fail("No friends selected");
+      process.exit(1);
+    }
+
+    const summary = `Selected ${selectedFriends.length} friends:
+${selectedFriends.map((id, index) => {
+  const friend = friends.find((entry) => entry.id === id);
+  return `${index + 1}. ${formatUsername(friend?.user)}`;
+}).join('\n')}`;
+
+    const { value: confirmSelection } = await prompts({
+      type: "confirm",
+      name: "value",
+      message: `${summary}\n\nAre you sure you want to proceed?`,
+      initial: false
+    });
+
+    if (!confirmSelection) {
+      spinner.fail("Operation cancelled");
+      process.exit(1);
+    }
+
+    spinner.start(`Removing friends (0/${selectedFriends.length})`);
+    let processedCount = 0;
+
+    for (const friendId of selectedFriends) {
+      const friend = friends.find((entry) => entry.id === friendId);
+      const label = formatUsername(friend?.user);
+      await removeFriend(token, friendId, label, spinner);
+      processedCount++;
+      spinner.text = `Removing friends (${processedCount}/${selectedFriends.length})`;
+    }
+
+    spinner.succeed("Friend cleanup completed successfully");
+    return;
+  }
 
   // Get and sort guilds
   spinner.start("Getting servers");
@@ -195,52 +351,195 @@ async function main() {
     const stats = getSortStats();
     spinner.succeed(`Sorted servers using ${sortType}${usedFallback ? ' (some data was missing, used fallback values)' : ''}${stats ? `\n${stats}` : ''}`);
 
-    const { value: selectedGuilds } = await prompts({
-      type: "multiselect",
+    const { value: applyFilters } = await prompts({
+      type: "confirm",
       name: "value",
-      message: "Select servers to leave",
-      hint: "Space to select. Enter to confirm. Type to search. Esc for different sorting",
-      instructions: false,
-      choices: guilds.data.map((guild) => {
-        let details = [];
-        
-        // Add server age
-        details.push(`Created: ${formatTimestamp(guild.id)}`);
-        
-        // Add join date if available
-        if (guild.joined_at) {
-          details.push(`Joined: ${formatDate(guild.joined_at)}`);
-        }
-
-        // Add member count if available
-        if (guild.approximate_member_count) {
-          details.push(`Members: ${guild.approximate_member_count.toLocaleString()}`);
-        }
-
-        // Add role count if available
-        if (guild.roles?.length) {
-          details.push(`Roles: ${guild.roles.length}`);
-        }
-
-        // Add status indicators
-        const indicators = [];
-        if (guild.owner) indicators.push('👑 Owner');
-        if (guild.permissions & 0x8) indicators.push('⚡ Admin');
-        if (guild.features?.includes('VERIFIED')) indicators.push('✓ Verified');
-        if (indicators.length) details.push(indicators.join(' '));
-
-        return {
-          title: guild.name,
-          value: guild.id,
-          description: details.join(' | ')
-        };
-      }),
-      onState: (state) => {
-        if (state.aborted) {
-          return true;
-        }
-      }
+      message: "Apply filters before selecting servers?",
+      initial: false
     });
+
+    if (applyFilters === undefined) {
+      spinner.fail("Operation cancelled");
+      process.exit(1);
+    }
+
+    let filteredGuilds = guilds.data;
+    if (applyFilters) {
+      const filterResponses = await prompts([
+        {
+          type: "select",
+          name: "ownedFilter",
+          message: "Filter owned servers",
+          choices: [
+            { title: "Include all", value: "any" },
+            { title: "Only servers you own", value: "only" },
+            { title: "Exclude servers you own", value: "exclude" }
+          ],
+          initial: 0
+        },
+        {
+          type: "select",
+          name: "adminFilter",
+          message: "Filter servers where you have admin",
+          choices: [
+            { title: "Include all", value: "any" },
+            { title: "Only servers with admin", value: "only" },
+            { title: "Exclude servers with admin", value: "exclude" }
+          ],
+          initial: 0
+        },
+        {
+          type: "select",
+          name: "verifiedFilter",
+          message: "Filter verified servers",
+          choices: [
+            { title: "Include all", value: "any" },
+            { title: "Only verified servers", value: "only" }
+          ],
+          initial: 0
+        },
+        {
+          type: "text",
+          name: "minMembers",
+          message: "Minimum member count (optional)",
+          validate: (value) => {
+            if (!value) return true;
+            return Number.isNaN(Number(value)) ? "Enter a valid number" : true;
+          }
+        },
+        {
+          type: "text",
+          name: "maxMembers",
+          message: "Maximum member count (optional)",
+          validate: (value) => {
+            if (!value) return true;
+            return Number.isNaN(Number(value)) ? "Enter a valid number" : true;
+          }
+        },
+        {
+          type: "text",
+          name: "createdAfter",
+          message: "Created after (YYYY-MM-DD, optional)",
+          validate: (value) => {
+            if (!value) return true;
+            return parseOptionalDate(value) ? true : "Enter a valid date (YYYY-MM-DD)";
+          }
+        },
+        {
+          type: "text",
+          name: "createdBefore",
+          message: "Created before (YYYY-MM-DD, optional)",
+          validate: (value) => {
+            if (!value) return true;
+            return parseOptionalDate(value) ? true : "Enter a valid date (YYYY-MM-DD)";
+          }
+        }
+      ]);
+
+      if (Object.values(filterResponses).some((value) => value === undefined)) {
+        spinner.fail("Operation cancelled");
+        process.exit(1);
+      }
+
+      const minMembers = parseOptionalNumber(filterResponses.minMembers);
+      const maxMembers = parseOptionalNumber(filterResponses.maxMembers);
+      const createdAfter = parseOptionalDate(filterResponses.createdAfter);
+      const createdBefore = parseOptionalDate(filterResponses.createdBefore);
+
+      filteredGuilds = guilds.data.filter((guild) => {
+        const hasAdmin = (guild.permissions & 0x8) === 0x8;
+        const isVerified = guild.features?.includes('VERIFIED');
+        const memberCount = guild.approximate_member_count ?? 0;
+        const createdAt = getCreatedDate(guild.id);
+
+        if (filterResponses.ownedFilter === "only" && !guild.owner) return false;
+        if (filterResponses.ownedFilter === "exclude" && guild.owner) return false;
+        if (filterResponses.adminFilter === "only" && !hasAdmin) return false;
+        if (filterResponses.adminFilter === "exclude" && hasAdmin) return false;
+        if (filterResponses.verifiedFilter === "only" && !isVerified) return false;
+        if (minMembers !== null && memberCount < minMembers) return false;
+        if (maxMembers !== null && memberCount > maxMembers) return false;
+        if (createdAfter && createdAt < createdAfter) return false;
+        if (createdBefore && createdAt > createdBefore) return false;
+        return true;
+      });
+
+      spinner.succeed(`Filters applied: ${filteredGuilds.length}/${guilds.data.length} servers match`);
+    }
+
+    if (!filteredGuilds.length) {
+      spinner.fail("No servers match the selected filters");
+      process.exit(1);
+    }
+
+    const { value: selectionMode } = await prompts({
+      type: "select",
+      name: "value",
+      message: "How do you want to choose servers?",
+      choices: [
+        { title: "Select manually", value: "manual" },
+        { title: `Leave all ${filteredGuilds.length} filtered servers`, value: "all" }
+      ]
+    });
+
+    if (!selectionMode) {
+      spinner.fail("Operation cancelled");
+      process.exit(1);
+    }
+
+    let selectedGuilds;
+    if (selectionMode === "all") {
+      selectedGuilds = filteredGuilds.map((guild) => guild.id);
+    } else {
+      const selectionResponse = await prompts({
+        type: "multiselect",
+        name: "value",
+        message: "Select servers to leave",
+        hint: "Space to select. Enter to confirm. Type to search. Esc for different sorting",
+        instructions: false,
+        choices: filteredGuilds.map((guild) => {
+          let details = [];
+          
+          // Add server age
+          details.push(`Created: ${formatTimestamp(guild.id)}`);
+          
+          // Add join date if available
+          if (guild.joined_at) {
+            details.push(`Joined: ${formatDate(guild.joined_at)}`);
+          }
+
+          // Add member count if available
+          if (guild.approximate_member_count) {
+            details.push(`Members: ${guild.approximate_member_count.toLocaleString()}`);
+          }
+
+          // Add role count if available
+          if (guild.roles?.length) {
+            details.push(`Roles: ${guild.roles.length}`);
+          }
+
+          // Add status indicators
+          const indicators = [];
+          if (guild.owner) indicators.push('👑 Owner');
+          if (guild.permissions & 0x8) indicators.push('⚡ Admin');
+          if (guild.features?.includes('VERIFIED')) indicators.push('✓ Verified');
+          if (indicators.length) details.push(indicators.join(' '));
+
+          return {
+            title: guild.name,
+            value: guild.id,
+            description: details.join(' | ')
+          };
+        }),
+        onState: (state) => {
+          if (state.aborted) {
+            return true;
+          }
+        }
+      });
+
+      selectedGuilds = selectionResponse.value;
+    }
 
     if (selectedGuilds === undefined) {
       continue;

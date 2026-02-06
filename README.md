@@ -46,8 +46,12 @@ Alternatively, you can also find guides on how to obtain your Discord token by s
 To use BulkLeave, follow these steps:
 
 1. Open your terminal or command prompt.
-2. Run `bulkleave`.
-3. Follow the prompts in the terminal to authenticate your Discord account and select the servers you want to leave.
+2. Run `bulkleave` (or `npm start` if running from a local clone).
+3. Follow the prompts in the terminal to authenticate your Discord account.
+4. Choose whether you want to manage servers or clean up your friends list.
+5. For servers: sort and optionally filter your servers (owned/admin/verified, member count, and creation date filters are available), then choose manual selection or leave all filtered servers.
+6. For friends: select friends manually or remove all friends at once.
+7. Confirm the summary before the tool performs the changes.
 
 Note: If you have two-factor authentication (2FA) enabled on your Discord account, you will be prompted to enter a verification code after logging in.
 
