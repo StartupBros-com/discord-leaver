@@ -1,64 +1,41 @@
-# BulkLeave
+# BulkLeave — Bulk Leave Discord Servers
 
-BulkLeave is a command-line interface (CLI) program written in Node.js that allows you to quickly and easily leave multiple Discord servers at once. It is especially useful for cleaning up your server list or leaving servers that you are no longer active in.
+A simple CLI tool that lets you mass-leave (or delete) Discord servers and clean up your friends list. Sort, filter, pick the ones you want gone, and confirm. Done.
 
-## Installation
+## Quick Start
 
-To use BulkLeave, you must have Node.js installed on your computer. If you do not have Node.js installed, you can download it [here](https://nodejs.org/en/download/).
+```bash
+git clone <repo-url>
+cd BulkLeave
+npm install
+npm start
+```
 
-### Cloning or Downloading the Repository
-
-To clone or download the repository, follow these steps:
-
-1. Open your terminal or command prompt.
-2. Navigate to the directory where you want to clone or download the repository.
-3. If you have Git installed, run `git clone https://github.com/daanschenkel/BulkLeave.git`. If you do not have Git installed, you can download the repository as a ZIP file by clicking the green "Code" button on the GitHub repository page and selecting "Download ZIP".
-4. If you cloned the repository with Git, navigate to the `BulkLeave` directory. If you downloaded the ZIP file, extract it to the directory where you want to install BulkLeave and navigate to the `BulkLeave-master` directory.
-5. Run `npm install` to install the required dependencies.
-
-### Installing with NPM
-
-Alternatively, you can install BulkLeave using NPM by running the following command in your terminal or command prompt:
-```npm install -g bulkleave```
-
-This will install BulkLeave globally on your system, allowing you to run it from anywhere using the `bulkleave` command.
+Requires **Node.js 18+**.
 
 ## Getting Your Discord Token
 
-In order to use BulkLeave, you will need to obtain your Discord token. Your Discord token is a unique identifier that is used to authenticate your account with the Discord API.
+1. Open Discord in your browser and log in.
+2. Press `Ctrl+Shift+I` (or `Cmd+Option+I` on Mac) to open Developer Tools.
+3. Click the **Application** tab.
+4. Expand **Local Storage** in the sidebar and click on the Discord entry.
+5. Find the `token` key and copy its value (without quotes).
 
-To obtain your Discord token, follow these steps:
-
-1. Log in to your Discord account in your web browser.
-2. Press `Ctrl`+`Shift`+`I` on your keyboard to open the developer tools.
-3. Click the "Application" tab in the developer tools.
-4. Click "Local Storage" in the left-hand menu.
-5. Click on the `discordapp.com` dropdown in the "Local Storage" section.
-6. Select the `token` key.
-7. Copy the value of the `token` key.
-
-Note that your Discord token changes frequently, so you may need to repeat these steps to obtain a new token.
-
-Alternatively, you can also find guides on how to obtain your Discord token by searching online. However, please be cautious when following guides from third-party websites, as they may contain malicious instructions or lead to the compromise of your account. For example, the following website provides a guide on how to obtain your Discord token, but we cannot vouch for its accuracy or safety: [https://discordhelp.net/discord-token](https://discordhelp.net/discord-token).
+> Your token is like a password — never share it with anyone.
 
 ## Usage
 
-To use BulkLeave, follow these steps:
+1. **Enter your token** — pasted securely (hidden input).
+2. **Choose mode** — manage servers or clean up your friends list.
+3. **Servers** — sort your servers, optionally filter (owned/admin/verified, member count, creation date), then select manually or leave all matching servers.
+4. **Friends** — select friends manually or remove all at once.
+5. **Review & confirm** — see your selection summary, then confirm to proceed.
+6. **Owned servers** — if you own a selected server, you'll be asked whether to delete it (with 2FA support).
 
-1. Open your terminal or command prompt.
-2. Run `bulkleave` (or `npm start` if running from a local clone).
-3. Follow the prompts in the terminal to authenticate your Discord account.
-4. Choose whether you want to manage servers or clean up your friends list.
-5. For servers: sort and optionally filter your servers (owned/admin/verified, member count, and creation date filters are available), then choose manual selection or leave all filtered servers.
-6. For friends: select friends manually or remove all friends at once.
-7. Confirm the summary before the tool performs the changes.
+## Built By
 
-Note: If you have two-factor authentication (2FA) enabled on your Discord account, you will be prompted to enter a verification code after logging in.
+Built by [StartupBros](https://startupbros.com) for the [House of Vibe](https://houseofvibe.ai) community.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Contributing
-
-Contributions are welcome! If you find a bug or have a feature request, please open an issue on GitHub. If you would like to contribute code, please
+[MIT](LICENSE)

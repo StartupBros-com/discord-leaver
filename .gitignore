@@ -39,3 +39,6 @@ coverage/
 # Temporary files
 tmp/
 temp/
+
+# Generated logs
+commit_message.log

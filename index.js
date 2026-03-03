@@ -8,15 +8,8 @@ import { rateLimit } from './utils/rateLimiter.js';
 import { CONFIG } from './config.js';
 
 const formatDate = (date) => new Date(date).toLocaleDateString();
-const formatTimestamp = (id) => {
-  const timestamp = Number((BigInt(id) >> 22n) + 1420070400000n);
-  return formatDate(new Date(timestamp));
-};
-
-function getTimestampFromId(id) {
-  const timestamp = Number((BigInt(id) >> 22n) + 1420070400000n);
-  return new Date(timestamp);
-}
+const getTimestampFromId = (id) => new Date(Number((BigInt(id) >> 22n) + 1420070400000n));
+const formatTimestamp = (id) => formatDate(getTimestampFromId(id));
 
 function parseOptionalNumber(value) {
   if (!value) return null;
@@ -313,9 +306,7 @@ ${selectedFriends.map((id, index) => {
           if (!a.approximate_member_count || !b.approximate_member_count) usedFallback = true;
           return (a.approximate_member_count ?? 0) - (b.approximate_member_count ?? 0);
         case "server_age":
-          const aTimestamp = Number((BigInt(a.id) >> 22n) + 1420070400000n);
-          const bTimestamp = Number((BigInt(b.id) >> 22n) + 1420070400000n);
-          return aTimestamp - bTimestamp;
+          return getTimestampFromId(a.id) - getTimestampFromId(b.id);
         case "role_count":
           if (!a.roles || !b.roles) usedFallback = true;
           return ((b.roles?.length ?? 0) - (a.roles?.length ?? 0));
