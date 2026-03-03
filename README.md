@@ -1,4 +1,4 @@
-# BulkLeave — Bulk Leave Discord Servers
+# discord-leaver — Bulk Leave Discord Servers
 
 A simple CLI tool that lets you mass-leave (or delete) Discord servers and clean up your friends list. Sort, filter, pick the ones you want gone, and confirm. Done.
 
@@ -6,7 +6,7 @@ A simple CLI tool that lets you mass-leave (or delete) Discord servers and clean
 
 ```bash
 git clone <repo-url>
-cd BulkLeave
+cd discord-leaver
 npm install
 npm start
 ```

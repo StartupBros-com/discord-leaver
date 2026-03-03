@@ -1,5 +1,5 @@
 {
-  "name": "bulkleave",
+  "name": "discord-leaver",
   "version": "1.0.0",
   "type": "module",
   "description": "A CLI tool to bulk leave Discord servers",
@@ -9,7 +9,7 @@
     "dev": "node --watch index.js"
   },
   "bin": {
-    "bulkleave": "./index.js"
+    "discord-leaver": "./index.js"
   },
   "engines": {
     "node": ">=18.0.0"
