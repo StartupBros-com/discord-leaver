@@ -4,7 +4,7 @@ import { getGuilds, enhanceGuildData } from "./utils/getGuilds.js";
 import { getRelationships } from "./utils/getRelationships.js";
 import { checkToken } from "./utils/checkToken.js";
 import { validateToken, validate2FACode } from './utils/validation.js';
-import { rateLimit } from './utils/rateLimiter.js';
+import { discordFetch } from './utils/rateLimiter.js';
 import { CONFIG } from './config.js';
 
 const formatDate = (date) => new Date(date).toLocaleDateString();
@@ -40,11 +40,9 @@ function formatUsername(user) {
 
 async function removeFriend(token, userId, label, removeSpinner) {
   try {
-    await rateLimit(async () => {
-      await fetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/users/@me/relationships/${userId}`, {
-        method: "DELETE",
-        headers: { Authorization: token },
-      });
+    await discordFetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/users/@me/relationships/${userId}`, {
+      method: "DELETE",
+      headers: { Authorization: token },
     });
     removeSpinner.succeed(`Removed ${label}`);
   } catch (error) {
@@ -54,11 +52,9 @@ async function removeFriend(token, userId, label, removeSpinner) {
 
 async function leaveGuild(token, guild, guildInfo, leaveSpinner) {
   try {
-    await rateLimit(async () => {
-      await fetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/users/@me/guilds/${guild}`, {
-        method: "DELETE",
-        headers: { Authorization: token },
-      });
+    await discordFetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/users/@me/guilds/${guild}`, {
+      method: "DELETE",
+      headers: { Authorization: token },
     });
     leaveSpinner.succeed(`Left ${guildInfo.name}`);
   } catch (error) {
@@ -68,25 +64,18 @@ async function leaveGuild(token, guild, guildInfo, leaveSpinner) {
 
 async function deleteGuild(token, guildInfo, twofactor, leaveSpinner) {
   try {
-    await rateLimit(async () => {
-      const response = await fetch(
-        `${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/guilds/${guildInfo.id}/delete`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: token,
-            "Content-Type": "application/json",
-          },
-          body: twofactor ? JSON.stringify({ code: twofactor }) : null,
-        }
-      );
-
-      if (response.status === 204) {
-        leaveSpinner.succeed(`Successfully deleted ${guildInfo.name}`);
-      } else {
-        throw new Error(`HTTP ${response.status}`);
+    await discordFetch(
+      `${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/guilds/${guildInfo.id}/delete`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: token,
+          "Content-Type": "application/json",
+        },
+        body: twofactor ? JSON.stringify({ code: twofactor }) : null,
       }
-    });
+    );
+    leaveSpinner.succeed(`Successfully deleted ${guildInfo.name}`);
   } catch (error) {
     leaveSpinner.fail(`Failed to delete ${guildInfo.name}: ${error.message}`);
   }
@@ -564,50 +553,50 @@ ${selectedGuilds.map((id, index) => {
     spinner.start(`Processing servers (0/${selectedGuilds.length})`);
     let processedCount = 0;
     
-    const user = await rateLimit(() => 
-      fetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/users/@me`, {
-        headers: { Authorization: token },
-      }).then(res => res.json())
-    );
+    const user = await discordFetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/users/@me`, {
+      headers: { Authorization: token },
+    }).then(res => res.json());
 
     for (const guild of selectedGuilds) {
-      const guildInfo = await rateLimit(() => 
-        fetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/guilds/${guild}`, {
+      try {
+        const guildInfo = await discordFetch(`${CONFIG.API_BASE_URL}/${CONFIG.API_VERSION}/guilds/${guild}`, {
           headers: { Authorization: token },
-        }).then(res => res.json())
-      );
+        }).then(res => res.json());
 
-      if (guildInfo.owner_id !== user.id) {
-        await leaveGuild(token, guild, guildInfo, spinner);
-      } else {
-        spinner.stop();
-        const { value: deleteServer } = await prompts({
-          type: "confirm",
-          name: "value",
-          message: `Do you want to delete ${guildInfo.name}?`,
-        });
+        if (guildInfo.owner_id !== user.id) {
+          await leaveGuild(token, guild, guildInfo, spinner);
+        } else {
+          spinner.stop();
+          const { value: deleteServer } = await prompts({
+            type: "confirm",
+            name: "value",
+            message: `Do you want to delete ${guildInfo.name}?`,
+          });
 
-        if (deleteServer) {
-          if (user.mfa_enabled) {
-            const { value: twofactor } = await prompts({
-              type: "text",
-              name: "value",
-              message: `Enter your 2FA code for ${guildInfo.name}`,
-            });
+          if (deleteServer) {
+            if (user.mfa_enabled) {
+              const { value: twofactor } = await prompts({
+                type: "text",
+                name: "value",
+                message: `Enter your 2FA code for ${guildInfo.name}`,
+              });
 
-            const tfaValidation = validate2FACode(twofactor);
-            if (!tfaValidation.valid) {
-              spinner.fail(tfaValidation.error);
-              continue;
+              const tfaValidation = validate2FACode(twofactor);
+              if (!tfaValidation.valid) {
+                spinner.fail(tfaValidation.error);
+                continue;
+              }
+
+              await deleteGuild(token, guildInfo, twofactor, spinner);
+            } else {
+              await deleteGuild(token, guildInfo, null, spinner);
             }
-
-            await deleteGuild(token, guildInfo, twofactor, spinner);
-          } else {
-            await deleteGuild(token, guildInfo, null, spinner);
           }
         }
+      } catch (error) {
+        spinner.fail(`Failed to process server ${guild}: ${error.message}`);
       }
-      
+
       processedCount++;
       spinner.text = `Processing servers (${processedCount}/${selectedGuilds.length})`;
     }
