@@ -34,7 +34,7 @@ Requires **Node.js 18+**.
 
 ## Built By
 
-Built by [StartupBros](https://startupbros.com) for the [House of Vibe](https://houseofvibe.ai) community.
+Built by [StartupBros](https://startupbros.com) for the [House of Vibe](https://houseofvibe.ai) community. Originally forked from [dandanthedev/BulkLeave](https://github.com/dandanthedev/BulkLeave).
 
 ## License
 
