@@ -13,6 +13,11 @@ npm start
 
 Requires **Node.js 18+**.
 
+> **Disclaimer:** This tool automates **your own** Discord account using **your own** token.
+> Automating a user account ("self-botting") is a gray area under Discord's Terms of Service
+> and can put your account at risk. Use at your own risk. Never share your token with anyone,
+> and never paste it into a tool you haven't read the source of.
+
 ## Getting Your Discord Token
 
 1. Open Discord in your browser and log in.
