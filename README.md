@@ -11,7 +11,7 @@ npm install
 npm start
 ```
 
-Requires **Node.js 18+**.
+Requires **Node.js 22+**.
 
 > **Disclaimer:** This tool automates **your own** Discord account using **your own** token.
 > Automating a user account ("self-botting") is a gray area under Discord's Terms of Service
